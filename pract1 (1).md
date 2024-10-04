@@ -72,7 +72,24 @@ grep -oE '\b[a-zA-Z_][a-zA-Z0-9_]*\b' hello.c | grep -vE '\b(int|void|return|if|
 Например, пусть программа называется reg:
 
 ```
-./reg banner
+#!/bin/bash
+if [ -z "$1" ]; then
+    echo "Использование: $0 <имя_команды>"
+    exit 1
+fi
+COMMAND_NAME=$1
+if ! command -v "$COMMAND_NAME" &> /dev/null; then
+    echo "Команда '$COMMAND_NAME' не найдена."
+    exit 1
+fi
+sudo cp "$(command -v "$COMMAND_NAME")" /usr/local/bin/
+sudo chmod 755 /usr/local/bin/"$COMMAND_NAME"
+if [ $? -eq 0 ]; then
+    echo "Команда '$COMMAND_NAME' успешно зарегистрирована."
+else
+    echo "Ошибка при регистрации команды '$COMMAND_NAME'."
+    exit 1
+fi
 ```
 
 В результате для banner задаются правильные права доступа и сам banner копируется в /usr/local/bin.
@@ -80,46 +97,114 @@ grep -oE '\b[a-zA-Z_][a-zA-Z0-9_]*\b' hello.c | grep -vE '\b(int|void|return|if|
 ## Задача 6
 
 Написать программу для проверки наличия комментария в первой строке файлов с расширением c, js и py.
+```
+#!/bin/bash
+if [ -z "$1" ]; then
+    echo "Использование: $0 <каталог>"
+    exit 1
+fi
+DIR=$1
+find "$DIR" -type f \( -name "*.c" -o -name "*.js" -o -name "*.py" \) | while read -r file; do
+    first_line=$(head -n 1 "$file")
+    if [[ "$file" == *.py && "$first_line" =~ ^# ]]; then
+        echo "Файл $file: содержит комментарий в первой строке."
+    elif [[ "$file" == *.c && ("$first_line" =~ ^// || "$first_line" =~ ^/\*) ]]; then
+        echo "Файл $file: содержит комментарий в первой строке."
+    elif [[ "$file" == *.js && "$first_line" =~ ^// ]]; then
+        echo "Файл $file: содержит комментарий в первой строке."
+    else
+        echo "Файл $file: не содержит комментарий в первой строке."
+    fi
+done
+```
 
 ## Задача 7
 
 Написать программу для нахождения файлов-дубликатов (имеющих 1 или более копий содержимого) по заданному пути (и подкаталогам).
+```
+#!/bin/bash
+if [ -z "$1" ]; then
+    echo "Использование: $0 <каталог>"
+    exit 1
+fi
+DIR=$1
+declare -A file_hashes
+find "$DIR" -type f | while read -r file; do
+    file_hash=$(sha256sum "$file" | awk '{print $1}')
+    if [[ -n "${file_hashes[$file_hash]}" ]]; then
+        echo "Найден дубликат: $file"
+        echo "Оригинал: ${file_hashes[$file_hash]}"
+    else
+        file_hashes["$file_hash"]=$file
+    fi
+done
+```
 
 ## Задача 8
 
 Написать программу, которая находит все файлы в данном каталоге с расширением, указанным в качестве аргумента и архивирует все эти файлы в архив tar.
+```
+#!/bin/bash
+if [ "$#" -ne 2 ]; then
+    echo "Использование: $0 <каталог> <расширение>"
+    exit 1
+fi
+DIR=$1
+EXTENSION=$2
+ARCHIVE_NAME="archive_$(date +%Y%m%d_%H%M%S).tar"
+find "$DIR" -type f -name "*.$EXTENSION" | tar -cvf "$ARCHIVE_NAME" -T -
+if [ $? -eq 0 ]; then
+    echo "Файлы с расширением .$EXTENSION успешно архивированы в $ARCHIVE_NAME"
+else
+    echo "Ошибка при создании архива"
+    exit 1
+fi
+```
 
 ## Задача 9
 
 Написать программу, которая заменяет в файле последовательности из 4 пробелов на символ табуляции. Входной и выходной файлы задаются аргументами.
+```
+#!/bin/bash
+if [ "$#" -ne 2 ]; then
+    echo "Использование: $0 <входной_файл> <выходной_файл>"
+    exit 1
+fi
+INPUT_FILE=$1
+OUTPUT_FILE=$2
+if [ ! -f "$INPUT_FILE" ]; then
+    echo "Ошибка: входной файл '$INPUT_FILE' не существует."
+    exit 1
+fi
+sed 's/    /\t/g' "$INPUT_FILE" > "$OUTPUT_FILE"
+if [ $? -eq 0 ]; then
+    echo "Замена успешно выполнена. Результат сохранён в '$OUTPUT_FILE'."
+else
+    echo "Ошибка при обработке файла."
+    exit 1
+fi
+```
 
 ## Задача 10
 
 Написать программу, которая выводит названия всех пустых текстовых файлов в указанной директории. Директория передается в программу параметром. 
+```
+#!/bin/bash
+if [ "$#" -ne 1 ]; then
+    echo "Использование: $0 <директория>"
+    exit 1
+fi
+DIR=$1
+if [ ! -d "$DIR" ]; then
+    echo "Ошибка: Директория '$DIR' не существует."
+    exit 1
+fi
+find "$DIR" -type f -name "*.txt" -empty
+if [ $? -eq 0 ]; then
+    echo "Поиск завершён."
+else
+    echo "Ошибка при поиске."
+    exit 1
+fi
 
-## Полезные ссылки
-
-Линукс в браузере: https://bellard.org/jslinux/
-
-ShellCheck: https://www.shellcheck.net/
-
-Разработка CLI-приложений
-
-Общие сведения
-
-https://ru.wikipedia.org/wiki/Интерфейс_командной_строки
-https://nullprogram.com/blog/2020/08/01/
-https://habr.com/ru/post/150950/
-
-Стандарты
-
-https://www.gnu.org/prep/standards/standards.html#Command_002dLine-Interfaces
-https://www.gnu.org/software/libc/manual/html_node/Argument-Syntax.html
-https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html
-
-Реализация разбора опций
-
-Питон
-
-https://docs.python.org/3/library/argparse.html#module-argparse
-https://click.palletsprojects.com/en/7.x/
+```
